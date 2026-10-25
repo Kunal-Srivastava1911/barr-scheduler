@@ -1,0 +1,17 @@
+{
+  "name": "full",
+  "description": "Full matrix of the implementation plan: four synthetic families at three loads with ten seeds, every baseline and BARR variant.",
+  "families": ["exp", "bimodal", "pareto", "phase"],
+  "loads": [0.5, 0.7, 0.9],
+  "seeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  "n_procs": 60,
+  "bursts": [10, 40],
+  "cs_cost": 0.1,
+  "linux": {"windows": 10, "window_ms": 2000},
+  "schedulers": ["FCFS", "RR-2", "RR-5", "RR-10", "RR-20", "RR-50", "SJF-EMA", "SRTF",
+                 "MedianRR-oracle", "MedianRR-pred", "BeheraRR-oracle", "BeheraRR-pred",
+                 "MeanRR-oracle", "MeanRR-pred",
+                 "BARR-EMA", "BARR-GBRT", "BARR-ORACLE", "BARR-S-EMA", "BARR-S-GBRT", "BARR-S-ORACLE"],
+  "barr": {"delta": 0.25, "q_min": 1.0, "q_max": 50.0, "beta": 2.0, "aging": 64},
+  "barr_s": {"delta": 0.25, "q_min": 1.0, "q_max": 5.0, "beta": 2.0, "aging": 64}
+}

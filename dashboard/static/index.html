@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BARR Scheduler Lab</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>BARR Scheduler Lab</h1>
+    <div class="sub">Burst-Aware Adaptive Round Robin: learned CPU burst prediction for time quantum selection</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="status" id="status"></div>
+  <button class="btn icon" id="theme" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+</header>
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="sim" aria-selected="true">Live simulator</button>
+  <button role="tab" data-tab="pred" aria-selected="false">Predictors</button>
+  <button role="tab" data-tab="exp" aria-selected="false">Experiments</button>
+  <button role="tab" data-tab="tests" aria-selected="false">Tests</button>
+  <button role="tab" data-tab="about" aria-selected="false">About</button>
+</nav>
+
+<main>
+<!-- ============================================================ simulator -->
+<section class="tab active" id="tab-sim">
+  <div class="sim-grid">
+    <aside class="card">
+      <h3 style="margin-bottom:12px">Workload</h3>
+      <div class="field"><label for="s-family">Family</label><select id="s-family"></select></div>
+      <div class="row">
+        <div class="field"><label for="s-n">Processes</label><input id="s-n" type="number" min="2" max="60" value="12"></div>
+        <div class="field"><label for="s-load" title="Offered CPU load while processes arrive; above 1 the arrivals form a burst that queues up">Load ρ</label><input id="s-load" type="number" min="0.1" max="3" step="0.1" value="1.5"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="s-bmin">Bursts min</label><input id="s-bmin" type="number" min="1" max="60" value="3"></div>
+        <div class="field"><label for="s-bmax">Bursts max</label><input id="s-bmax" type="number" min="1" max="60" value="8"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="s-seed">Seed</label><input id="s-seed" type="number" value="1"></div>
+        <div class="field"><label for="s-cs">Switch cost c (ms)</label><input id="s-cs" type="number" min="0" step="0.01" value="0.1"></div>
+      </div>
+      <fieldset>
+        <legend>Schedulers (up to 4)</legend>
+        <div class="checks" id="s-scheds" style="grid-template-columns:1fr 1fr"></div>
+      </fieldset>
+      <details>
+        <summary>BARR quantum controller</summary>
+        <div class="row">
+          <div class="field"><label for="b-delta">δ margin</label><input id="b-delta" type="number" step="0.05" value="0.25"></div>
+          <div class="field"><label for="b-beta">β growth</label><input id="b-beta" type="number" step="0.5" value="2"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="b-qmin">q_min</label><input id="b-qmin" type="number" step="0.5" value="1"></div>
+          <div class="field"><label for="b-qmax">q_max</label><input id="b-qmax" type="number" step="1" value="50"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="b-aging">Aging A</label><input id="b-aging" type="number" step="1" value="64"></div>
+          <div class="field"><label for="bs-qmax">BARR-S q_max</label><input id="bs-qmax" type="number" step="1" value="5"></div>
+        </div>
+      </details>
+      <button class="btn primary" id="s-run" style="width:100%">▶ Run simulation</button>
+      <p class="small muted" id="s-msg" style="margin-top:8px"></p>
+    </aside>
+
+    <div>
+      <div class="card playbar">
+        <button class="btn icon" id="p-play" aria-label="Play or pause">▶</button>
+        <button class="btn icon" id="p-restart" aria-label="Restart" title="Restart">↺</button>
+        <input type="range" id="p-time" min="0" max="1000" value="0" aria-label="Simulation time">
+        <span class="time" id="p-readout">t = 0.0 ms</span>
+        <label class="small muted" for="p-speed" style="margin:0">Speed</label>
+        <select id="p-speed">
+          <option value="0.25">slow</option><option value="1" selected>normal</option>
+          <option value="3">fast</option><option value="10">very fast</option>
+        </select>
+        <div class="legend" id="kind-legend"></div>
+      </div>
+      <div id="lanes"><div class="card empty">Pick a workload and schedulers, then run the simulation.</div></div>
+      <div class="card" id="compare-card" hidden>
+        <div class="card-head"><h3>Comparison at completion</h3><span class="muted small">lower is better unless marked ↑</span></div>
+        <div class="grid4" id="compare-charts"></div>
+        <div class="table-wrap" style="margin-top:14px"><table class="data" id="compare-table"></table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ predictors -->
+<section class="tab" id="tab-pred">
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head"><h3>Train burst predictors</h3></div>
+      <p class="small muted">Synthetic workloads (plus Linux bursts in <code>data/linux</code>, if collected), split chronologically per process 60 / 20 / 20. EMA α and the GBRT loss are chosen on validation; the test part is used once.</p>
+      <div class="row" style="align-items:end">
+        <div class="field"><label for="t-n">Processes per family</label><input id="t-n" type="number" min="20" max="600" value="150"></div>
+        <div class="field"><label class="checks" style="display:flex;gap:6px;align-items:center;color:var(--ink-1)"><input type="checkbox" id="t-lstm" checked> LSTM <span class="muted" id="t-lstm-note"></span></label></div>
+        <div class="field"><button class="btn primary" id="t-run">Train</button></div>
+      </div>
+      <pre class="log" id="t-log">No training run in this session yet.</pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Test-set MAE relative to exponential averaging</h3></div>
+      <p class="small muted">Below 1.0 means the predictor beats EMA. The implementation plan's target is ≤ 0.85 (a 15 % reduction).</p>
+      <div id="p-chart"><div class="empty">Train predictors to see results.</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Prediction accuracy and cost on test bursts</h3><span class="spacer"></span><span class="small muted" id="p-meta"></span></div>
+    <div class="table-wrap"><table class="data" id="p-table"></table></div>
+  </div>
+</section>
+
+<!-- ============================================================ experiments -->
+<section class="tab" id="tab-exp">
+  <div class="exp-grid">
+    <aside class="card">
+      <h3 style="margin-bottom:12px">Experiment matrix</h3>
+      <div class="row">
+        <div class="field"><label for="e-preset">Preset</label><select id="e-preset"></select></div>
+        <div class="field"><label for="e-name">Result name</label><input id="e-name" type="text" value="draft"></div>
+      </div>
+      <fieldset><legend>Synthetic families</legend><div class="checks" id="e-fams"></div></fieldset>
+      <div class="row">
+        <div class="field"><label for="e-loads">Loads ρ</label><input id="e-loads" type="text" value="0.7"></div>
+        <div class="field"><label for="e-seeds">Seeds</label><input id="e-seeds" type="number" min="1" max="30" value="3"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="e-n">Processes</label><input id="e-n" type="number" min="5" max="300" value="60"></div>
+        <div class="field"><label for="e-cs">Switch cost c</label><input id="e-cs" type="number" step="0.01" value="0.1"></div>
+      </div>
+      <fieldset><legend>Schedulers</legend><div class="checks" id="e-scheds" style="grid-template-columns:1fr 1fr"></div></fieldset>
+      <button class="btn primary" id="e-run" style="width:100%">▶ Run experiment</button>
+      <div class="field" style="margin-top:12px"><label for="e-load">Open saved result</label><select id="e-load"></select></div>
+    </aside>
+    <div>
+      <div class="card">
+        <div class="card-head"><h3>Progress</h3><span class="spacer"></span><span class="small muted num" id="e-count"></span></div>
+        <div class="progress"><div id="e-bar"></div></div>
+        <div class="table-wrap" style="margin-top:12px;max-height:220px;overflow:auto"><table class="data" id="e-live"></table></div>
+        <details style="margin-top:10px"><summary>Log</summary><pre class="log" id="e-log"></pre></details>
+      </div>
+      <div id="e-results"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ tests -->
+<section class="tab" id="tab-tests">
+  <div class="card">
+    <div class="card-head"><h3>Test suite</h3><span class="spacer"></span><span id="x-summary"></span><button class="btn primary" id="x-run">▶ Run tests</button></div>
+    <p class="small muted">Textbook Gantt checks (FCFS 17, SJF 7, SRTF 6.5, RR 5.67 ms), RR cross-check against an independent loop, invariants on random workloads for every scheduler, the ftrace burst parser, the feature leakage check, the BARR-oracle ≡ RR(q_max) equivalence and dynamic RR behaviour.</p>
+    <pre class="log" id="x-log" style="max-height:560px">Press "Run tests" to run pytest.</pre>
+  </div>
+</section>
+
+<!-- ============================================================ about -->
+<section class="tab" id="tab-about">
+  <div class="card about">
+    <h2>What this project does</h2>
+    <p>Round robin depends on one fixed time quantum. Dynamic quantum algorithms adapt it but assume every burst length is known in advance, which a real operating system does not know. BARR predicts the next CPU burst of each process from its own history and turns the prediction into a bounded per-process quantum.</p>
+    <h3>Quantum controller</h3>
+    <div class="formula">q<sub>i</sub> = min(q<sub>max</sub>, max(q<sub>min</sub>, (1 + δ)(p<sub>i</sub> − u<sub>i</sub>)))</div>
+    <p>p<sub>i</sub> is the predicted burst and u<sub>i</sub> the CPU time already used. When a quantum expires, p<sub>i</sub> ← max(p<sub>i</sub>, β·u<sub>i</sub>), so repeated under-prediction grows the quantum geometrically up to q<sub>max</sub>.</p>
+    <h3>Algorithm</h3>
+    <ol>
+      <li>When a burst becomes ready, build its features from the stored history and predict p<sub>i</sub> (cold start: exponential average).</li>
+      <li>Insert the process in the ready queue: FIFO for BARR, smallest p<sub>i</sub> − u<sub>i</sub> first for BARR-S.</li>
+      <li>If a waiting process has been passed by more than A dispatches, move it to the head (aging).</li>
+      <li>Dispatch the head for q<sub>i</sub>; charge the switch cost c if it differs from the last process.</li>
+      <li>On completion, record the burst and append it to the history; otherwise raise p<sub>i</sub> and re-queue.</li>
+    </ol>
+    <h3>Key observation</h3>
+    <p>With exact predictions, FIFO BARR produces exactly the schedule of RR with q = q<sub>max</sub> (try BARR-ORACLE against RR-50 in the simulator). A burst prediction is therefore worth more for deciding <em>which</em> process runs next than for <em>how long</em>, which is what BARR-S does.</p>
+    <h3>Success thresholds fixed before results</h3>
+    <ul>
+      <li>Learned predictor reduces MAE by ≥ 15 % relative to exponential averaging.</li>
+      <li>BARR needs ≥ 20 % fewer context switches than the best fixed RR, with P95 response within 10 %.</li>
+      <li>BARR keeps maximum waiting time no worse than RR with q = q<sub>max</sub>.</li>
+      <li>Compiled inference of the chosen model takes a few microseconds.</li>
+    </ul>
+    <h3>Command line</h3>
+    <pre class="log">python -m barr.demo                       # terminal Gantt demo
+python -m barr.predictors.train           # train and evaluate predictors
+python -m barr.experiments.run barr/experiments/configs/draft.json
+python -m pytest tests                    # test suite
+python -m dashboard                       # this dashboard
+sudo barr/traces/mixes.sh                 # Linux: collect ftrace bursts</pre>
+  </div>
+</section>
+</main>
+
+<div class="tip" id="tip" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
